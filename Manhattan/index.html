@@ -1,0 +1,384 @@
+<html>
+  <head>
+    <title>Manhattan Building Updates</title>
+    <style>
+
+      html, body {
+        padding     : 0;
+        margin      : 0;
+        height      : 100%;
+        width       : 100%;
+        font-family : helvetica, arial, sans-serif;
+      }
+
+      body {
+        display        : flex;
+        flex-direction : row;
+      }
+
+      #view-container {
+        flex-grow   : 1;
+        flex-shrink : 1;
+        min-width   : 0;
+        min-height  : 0;
+      }
+
+      #options-panel {
+        padding          : 10px;
+        background-color : #FFFFFF;
+      }
+
+      #measurement-section {
+        padding          : 15px;
+        background-color : #f1f3f4;
+        border           : solid 1px #CCCCCC;
+        margin-bottom    : 3px;
+      }
+
+      #measurement-label {
+        font-size   : 13pt;
+        font-weight : 400;
+      }
+
+      #measurement-section select {
+        font-size : 11pt;
+        margin    : 5px 0;
+      }
+
+      .esri-widget--button {
+        color            : #fff !important;
+        background-color : #444 !important;
+      }
+
+    </style>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/4.11/esri/css/main.css">
+    <script src="https://js.arcgis.com/4.11/"></script>
+
+    <script>
+      require([
+        "esri/identity/OAuthInfo",
+        "esri/identity/IdentityManager",
+        "esri/WebScene",
+        "esri/views/SceneView",
+        "esri/widgets/Legend",
+        "esri/core/watchUtils",
+      ], function (OAuthInfo, IdentityManager, WebScene, SceneView, Legend, watchUtils) {
+
+        //
+        // REGISTER APPLICATION OAUTH DETAILS //
+        // https://developers.arcgis.com/javascript/latest/guide/access-services-with-oauth-2/
+        //
+        // http://commre.maps.arcgis.com/home/item.html?id=cc9d1435794248c781894dcc34b40515
+        // - TODO: ADD PRESCRIPTIVE APP URL TO APPLICATION ITEM REGISTRATION
+        //
+        const appOAuthInfo = new OAuthInfo({ appId: "fyYusQsDpl0vPZme", popup: false });
+        IdentityManager.registerOAuthInfos([appOAuthInfo]);
+
+        //
+        // ARCGIS.COM ITEM = 3D MAP //
+        // https://developers.arcgis.com/javascript/latest/api-reference/esri-WebScene.html
+        //
+        // http://commre.maps.arcgis.com/home/item.html?id=46b0a46fa45b46348d7bcec3df51f67b
+        //
+        const webscene = new WebScene({
+          portalItem: { id: "46b0a46fa45b46348d7bcec3df51f67b" }
+        });
+
+        //
+        // SCENE VIEW //
+        // https://developers.arcgis.com/javascript/latest/api-reference/esri-views-SceneView.html
+        //
+        const view = new SceneView({
+          container: "view-container",
+          map: webscene
+        });
+        view.when(() => {
+
+          //
+          // FIND BUILDINGS LAYER //
+          //
+          const buildingsLayer = view.map.layers.find(layer => {
+            return (layer.title === "Manhattan 3D Buildings");
+          });
+          buildingsLayer.load().then(() => {
+            view.whenLayerView(buildingsLayer).then(buildingsLayerView => {
+
+              //
+              // REMOVE 415 MADISON FROM THE MANHATTAN BUILDINGS LAYER //
+              //
+              buildingsLayerView.filter = {
+                geometry: { type: "point", x: -73.976046, y: 40.756678 },
+                spatialRelationship: "disjoint"
+              };
+
+              //
+              // WHEN FINISHED WITH INITIAL DISPLAY UPDATE //
+              //
+              watchUtils.whenNotOnce(buildingsLayerView, "updating", () => {
+
+                //
+                // FIND FLOORS LAYER //
+                //
+                const floorsLayer = view.map.layers.find(layer => {
+                  return (layer.title === "415 Madison Floor Spaces");
+                });
+                floorsLayer.load().then(() => {
+
+                  //
+                  // UPDATE FLOOR MEASUREMENTS //
+                  //
+                  //  measurement
+                  //     supply_air_temperature
+                  //     interior_space_temperature
+                  //     co2_level
+                  //
+                  this.updateFloorMeasurements = (site, floor, measurement, value) => {
+
+                    const floorQuery = floorsLayer.createQuery();
+                    floorQuery.where = `(Site_id = '${site}') AND (Floor = ${floor})`;
+
+                    floorsLayer.queryFeatures(floorQuery).then(floorsFeatureSet => {
+
+                      const floorFeature = floorsFeatureSet.features[0].clone();
+                      floorFeature.attributes[measurement] = value;
+                      floorFeature.attributes.Time = (new Date()).valueOf();
+
+                      floorsLayer.applyEdits({ updateFeatures: [{ attributes: floorFeature.attributes }] }).then(applyEditsResults => {
+                        const updateFeatureResult = applyEditsResults.updateFeatureResults[0];
+                        if(updateFeatureResult.error) {
+                          console.error(updateFeatureResult.error)
+                        }
+                      }, console.warn);
+                    }, console.warn);
+
+                  };
+
+                  //
+                  // MAKE ALL FIELDS ACCESSIBLE //
+                  // - NOTE: WE CAN NARROW THIS DOWN IF NEEDED...
+                  //
+                  floorsLayer.outFields = ["*"];
+
+                  // OBJECT ID FIELD //
+                  //const oidField = buildingsLayer.objectIdField;
+
+                  //
+                  // CONFIGURE POPUP //
+                  // - THIS COULD ALSO BE DONE IN THE WEB SCENE //
+                  //
+                  floorsLayer.popupTemplate = {
+                    title: "Floor #{Floor} @ {site_id}",
+                    content: "Time: {Time}<br>Supply Air Temp: {supply_air_temperature}<br>Interior Space Temp: {interior_space_temperature}<br>CO2 Level: {co2_level}"
+                  };
+
+                  //
+                  // RENDERER VISUAL VARIABLE STOPS BY MEASUREMENT TYPE //
+                  // - TODO: CONFIGURE APPROPRIATE VALUE RANGES AND COLORS
+                  //
+                  const measurementStopsByType = {
+                    "supply_air_temperature": [
+                      { value: 50.0, color: "#FFFFFF" },
+                      { value: 72.5, color: "#FFA500" },
+                      { value: 75.5, color: "#FF0000" }
+                    ],
+                    "interior_space_temperature": [
+                      { value: 70.0, color: "#FFFFFF" },
+                      { value: 74.3, color: "#00FF00" },
+                      { value: 75.5, color: "#006400" }
+                    ],
+                    "co2_level": [
+                      { value: 0, color: "#FFFFFF" },
+                      { value: 5, color: "#00FFFF" },
+                      { value: 25, color: "#00008B" }
+                    ]
+                  };
+
+                  //
+                  // FLOOR SYMBOL //
+                  // - SWITCH FROM POLYGON WITH Z TO EXTRUDED
+                  //
+                  const floorSymbol = {
+                    type: "polygon-3d",
+                    symbolLayers: [
+                      {
+                        type: "extrude",
+                        material: { color: "#FFFFFF" },
+                        castShadows: true,
+                        edges: {
+                          type: "solid",
+                          size: 1.0,
+                          color: [102, 102, 102, 0.7]
+                        }
+                      }
+                    ]
+                  };
+
+                  //
+                  // EXTRUSION VISUAL VARIABLE //
+                  //
+                  const extrudeVisualVariable = {
+                    type: "size",
+                    axis: "height",
+                    field: "floor_height",
+                    valueUnit: "feet"
+                  };
+
+                  //
+                  // UPDATE FLOORS LAYER RENDERING //
+                  //
+                  const updateFloorsRendering = () => {
+                    floorsLayer.renderer = {
+                      type: "simple",
+                      symbol: floorSymbol,
+                      visualVariables: [
+                        extrudeVisualVariable,
+                        {
+                          type: "color",
+                          field: measurementSelect.value,
+                          stops: measurementStopsByType[measurementSelect.value]
+                        }
+                      ]
+                    };
+                  };
+
+                  //
+                  // MEASUREMENT OPTIONS //
+                  //
+                  const optionsPanel = document.createElement("div");
+                  optionsPanel.id = "options-panel";
+
+                  const measurementSection = document.createElement("div");
+                  measurementSection.id = "measurement-section";
+                  optionsPanel.append(measurementSection);
+
+                  const measurementLabel = document.createElement("div");
+                  measurementLabel.id = "measurement-label";
+                  measurementLabel.innerHTML = "Measurement";
+                  measurementSection.append(measurementLabel);
+
+                  // MEASUREMENT SELECT //
+                  const measurementSelect = document.createElement("select");
+                  measurementSection.append(measurementSelect);
+
+                  const option_supplyAirTemp = document.createElement("option");
+                  option_supplyAirTemp.innerHTML = "Supply Air Temp";
+                  option_supplyAirTemp.value = "supply_air_temperature";
+                  measurementSelect.add(option_supplyAirTemp);
+
+                  const option_interiorSpaceTemp = document.createElement("option");
+                  option_interiorSpaceTemp.innerHTML = "Interior Space Temp";
+                  option_interiorSpaceTemp.value = "interior_space_temperature";
+                  measurementSelect.add(option_interiorSpaceTemp);
+
+                  const option_CO2Level = document.createElement("option");
+                  option_CO2Level.innerHTML = "CO2 Level";
+                  option_CO2Level.value = "co2_level";
+                  measurementSelect.add(option_CO2Level);
+
+                  // UPDATE FLOOR RENDERING //
+                  measurementSelect.addEventListener("change", () => {
+                    updateFloorsRendering();
+                  });
+
+                  // BREAK //
+                  measurementSection.append(document.createElement("br"));
+
+                  // UPDATE INTERVAL //
+                  const updateInputLabel = document.createElement("label");
+                  updateInputLabel.innerHTML = "update every 5 secs";
+                  measurementSection.append(updateInputLabel);
+
+                  const updateInput = document.createElement("input");
+                  updateInput.type = "checkbox";
+                  updateInputLabel.prepend(updateInput);
+
+                  const oneSecondInMinutes = (1 / 60);
+                  const updateIntervalMinutes = (oneSecondInMinutes * 5);
+                  updateInput.addEventListener("change", () => {
+                    //
+                    // FLOORS LAYER REFRESH INTERVAL //
+                    //
+                    floorsLayer.refreshInterval = updateInput.checked ? updateIntervalMinutes : 0;
+                  });
+
+                  //
+                  // SET INITIAL FLOOR RENDERING //
+                  //
+                  updateFloorsRendering();
+
+                  //
+                  // LEGEND CONTAINER //
+                  //
+                  const legendContainer = document.createElement("div");
+                  optionsPanel.append(legendContainer);
+                  // LEGEND //
+                  const legend = new Legend({
+                    container: legendContainer,
+                    view: view,
+                    layerInfos: [{ layer: floorsLayer }]
+                  });
+
+                  //
+                  // POPUP DOCKING OPTIONS //
+                  //
+                  view.popup.dockEnabled = true;
+                  view.popup.dockOptions = {
+                    buttonEnabled: false,
+                    breakpoint: false,
+                    position: "bottom-right"
+                  };
+
+                  //
+                  // HIGHLIGHT //
+                  //
+                  /*
+                  let highlight = null;
+                  let selectedFeature = null;
+                  view.on("pointer-move", pointer_move_evt => {
+                    view.hitTest(pointer_move_evt, { include: [floorsLayer] }).then(hitResponse => {
+
+                      const floorHit = hitResponse.results.length ? hitResponse.results[0] : null;
+                      if(floorHit) {
+                        if((selectedFeature == null) || (floorHit.graphic.attributes[oidField] !== selectedFeature.attributes[oidField])) {
+                          selectedFeature = floorHit.graphic;
+                          highlight && highlight.remove();
+                          highlight = floorsLayerView.highlight(floorHit.graphic);
+                          if(view.popup.visible) {
+                            view.popup.features = [floorHit.graphic];
+                          } else {
+                            view.popup.open({ features: [floorHit.graphic] });
+                          }
+                        }
+                      } else {
+                        view.popup.close();
+                        highlight && highlight.remove();
+                        selectedFeature = null;
+                      }
+
+                    });
+                  });*/
+
+                  //
+                  // INTRO SLIDES //
+                  //
+                  const slides = view.map.presentation.slides;
+                  slides.getItemAt(1).applyTo(view, { animate: true, duration: 6000 }).then(() => {
+                    slides.getItemAt(2).applyTo(view, { animate: true, duration: 3000 }).then(() => {
+                      view.ui.add(optionsPanel, { position: "top-right", index: 0 });
+                    });
+                  });
+
+                });
+              });
+            });
+          });
+        });
+      });
+
+    </script>
+  </head>
+  <body>
+    <div id="view-container"></div>
+  </body>
+</html>

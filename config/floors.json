@@ -1,0 +1,50 @@
+[
+  {
+    site_id: "3_times_square",
+    date: "2019-04-23T00:00:00.000Z",
+    floor: "1",
+    site_id_floor: "3_times_square.1",
+    sensor_id: "56d74467b236cc7a4881f373",
+    dis: "AC1TS",
+    value: 75.226547,
+    time: "2019-04-23T17:47:32.000Z",
+    resource: "supply_air_temperature",
+    units: "°F"
+  },
+  {
+    site_id: "3_times_square",
+    date: "2019-04-23T00:00:00.000Z",
+    floor: "2",
+    site_id_floor: "3_times_square.2",
+    sensor_id: "56d860ebb236cc7a4881f5a9",
+    dis: "INTERIOR 2 N",
+    value: 78.25,
+    time: "2019-04-23T17:47:01.000Z",
+    resource: "interior_space_temperature",
+    units: "°F"
+  },
+  {
+    site_id: "40_east_52nd_street",
+    date: "2019-04-23T00:00:00.000Z",
+    floor: "3",
+    site_id_floor: "40_east_52nd_street.3",
+    sensor_id: "574854b3ca9bd0c413028405",
+    dis: "ReturnCO2.3fl",
+    value: 596.445984,
+    time: "2019-04-23T17:46:54.000Z",
+    resource: "co2_level",
+    units: "ppm"
+  },
+  {
+    site_id: "40_east_52nd_street",
+    date: "2019-04-23T00:00:00.000Z",
+    floor: "3",
+    site_id_floor: "40_east_52nd_street.3",
+    sensor_id: "574854b3ca9bd0c4130283e2",
+    dis: "ReturnCO2.3fl",
+    value: 639.817993,
+    time: "2019-04-23T17:47:38.000Z",
+    resource: "co2_level",
+    units: "ppm"
+  }
+]
