@@ -128,6 +128,9 @@
                   //
                   // UPDATE FLOOR MEASUREMENTS //
                   //
+                  //  site
+                  //    415_madison_ave
+                  //
                   //  measurement
                   //     supply_air_temperature
                   //     interior_space_temperature
@@ -196,7 +199,7 @@
 
                   //
                   // FLOOR SYMBOL //
-                  // - SWITCH FROM POLYGON WITH Z TO EXTRUDED
+                  // - SWITCH FROM POLYGON WITH Z TO EXTRUDED POLYGONS //
                   //
                   const floorSymbol = {
                     type: "polygon-3d",
@@ -215,16 +218,6 @@
                   };
 
                   //
-                  // EXTRUSION VISUAL VARIABLE //
-                  //
-                  const extrudeVisualVariable = {
-                    type: "size",
-                    axis: "height",
-                    field: "floor_height",
-                    valueUnit: "feet"
-                  };
-
-                  //
                   // UPDATE FLOORS LAYER RENDERING //
                   //
                   const updateFloorsRendering = () => {
@@ -232,7 +225,12 @@
                       type: "simple",
                       symbol: floorSymbol,
                       visualVariables: [
-                        extrudeVisualVariable,
+                        {
+                          type: "size",
+                          axis: "height",
+                          field: "floor_height",
+                          valueUnit: "feet"
+                        },
                         {
                           type: "color",
                           field: measurementSelect.value,
